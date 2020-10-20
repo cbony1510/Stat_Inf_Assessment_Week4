@@ -1,0 +1,103 @@
+---
+---
+title: "Assessment Applied Machine Learning"
+output: html_document
+--- 
+
+Date: 20-10-2020
+Name: Claudia B.
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The goal of this report is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.
+
+```{r setup, include=FALSE}
+library(knitr)
+library(caret)
+library(rpart)
+library(randomForest)
+library(plyr)
+
+
+set.seed(1234)
+```
+
+## Loading the data
+
+```{r cars}
+training_csv <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', header = TRUE, sep = ',')
+training_raw <- training_csv[,2:ncol(training_csv)]
+
+dim(training_raw)
+```
+
+## Cleaning the data & defining training and testing datasets
+
+WE partition the training and testing set from the original training dataset. 
+We remove the variables for which more than 60% of the information is missing. 
+
+```{r pressure, echo=FALSE}
+training_points <- createDataPartition(training_raw$classe, p=0.60, list=FALSE)
+training_model <- training_raw[training_points,]
+testing_model <- training_raw[-training_points,]
+
+cols <- c((colSums(!is.na(training_model[,-ncol(training_model)])) >= 0.6*nrow(training_model)))
+training_model <- training_model[,cols]
+testing_model <- testing_model[,cols]
+
+training_model <- mutate(training_model, classe = as.factor(classe))
+testing_model <- mutate(testing_model, classe = as.factor(classe))
+```
+
+## Run the Random Forest Model
+
+A random forest model is used on the 'classe' variable using the training_model dataset. 
+
+```{r}
+
+RFmodel <- randomForest(classe ~ .,data=training_model)
+
+print(RFmodel)
+```
+## Testing the model
+
+In order to evaluate the accuracy of the model, we use the predict funciton on the testing_modle dataset. 
+
+```{r}
+test_pred <- predict(RFmodel, newdata = testing_model[,-ncol(testing_model)])
+
+confMatrix <- confusionMatrix(test_pred,testing_model$classe)
+print(confMatrix)
+
+```
+The accuracy is of 99.7% which is very high. The model performs well! 
+
+### We look at the feature importance 
+
+The feature importance is printed and then plotted. 
+
+```{r}
+importance(RFmodel)
+```
+
+```{r}
+varImpPlot(RFmodel,type=2)
+```
+The variables are sorted by importance, meaning that the variables at the top of the plot explain more of the variance/and therefore of the information contained in the data. 
+
+## Predicting the 20 cases from the test data
+
+Now, we load the 20 cases form the testing data. We clean it similarly to the training dataset used to build the model. Below are the predictions. 
+
+```{r}
+testing_raw <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', header = TRUE, sep = ',',na.strings=c("NA",""))
+testing <- testing_raw[,-1] # Remove the first column that represents a ID Row
+testing <- testing[ , cols] # Keep the same columns of testing dataset
+testing <- testing[,-ncol(testing)] # Remove the problem ID 
+
+# Apply the ID Row to row.names and 100 for dummy row from testing dataset 
+predictions <- predict(RFmodel,testing)
+predictions
+```
